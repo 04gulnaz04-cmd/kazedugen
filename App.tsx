@@ -53,6 +53,76 @@ const App: React.FC = () => {
   // Translation Helper
   const t = translations[language];
 
+  // Global Theme Styles Configuration
+  const themeConfig = {
+    modern: {
+      appBg: 'bg-slate-50',
+      text: 'text-slate-800',
+      mutedText: 'text-slate-500',
+      headerBg: 'bg-white',
+      headerBorder: 'border-slate-200',
+      cardBg: 'bg-white',
+      cardBorder: 'border-slate-200',
+      primaryBtn: 'bg-green-600 hover:bg-green-700 text-white shadow-green-500/30',
+      secondaryBtn: 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200',
+      accentColor: 'text-green-600',
+      iconBg: 'bg-green-600',
+      tabActive: 'border-green-600 text-green-600',
+      inputRing: 'focus:ring-green-500',
+      font: 'font-sans'
+    },
+    dark: {
+      appBg: 'bg-slate-950',
+      text: 'text-slate-100',
+      mutedText: 'text-slate-400',
+      headerBg: 'bg-slate-900',
+      headerBorder: 'border-slate-800',
+      cardBg: 'bg-slate-900',
+      cardBorder: 'border-slate-800',
+      primaryBtn: 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-500/30',
+      secondaryBtn: 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700',
+      accentColor: 'text-indigo-400',
+      iconBg: 'bg-indigo-600',
+      tabActive: 'border-indigo-500 text-indigo-400',
+      inputRing: 'focus:ring-indigo-500',
+      font: 'font-sans'
+    },
+    playful: {
+      appBg: 'bg-yellow-50',
+      text: 'text-slate-900',
+      mutedText: 'text-slate-600',
+      headerBg: 'bg-white',
+      headerBorder: 'border-yellow-200',
+      cardBg: 'bg-white',
+      cardBorder: 'border-yellow-300',
+      primaryBtn: 'bg-pink-500 hover:bg-pink-600 text-white shadow-pink-500/30',
+      secondaryBtn: 'bg-white hover:bg-yellow-100 text-slate-700 border-yellow-300',
+      accentColor: 'text-pink-500',
+      iconBg: 'bg-pink-500',
+      tabActive: 'border-pink-500 text-pink-600',
+      inputRing: 'focus:ring-pink-400',
+      font: 'font-sans' // Could use a rounded font class if available
+    },
+    classic: {
+      appBg: 'bg-[#f0ece2]',
+      text: 'text-[#3e3b3b]',
+      mutedText: 'text-[#6e6b6b]',
+      headerBg: 'bg-[#e6e2d3]',
+      headerBorder: 'border-[#d1cebd]',
+      cardBg: 'bg-[#fdfbf7]',
+      cardBorder: 'border-[#d1cebd]',
+      primaryBtn: 'bg-[#8b5e3c] hover:bg-[#6f4b30] text-white shadow-[#8b5e3c]/30',
+      secondaryBtn: 'bg-[#fdfbf7] hover:bg-[#e6e2d3] text-[#3e3b3b] border-[#d1cebd]',
+      accentColor: 'text-[#8b5e3c]',
+      iconBg: 'bg-[#8b5e3c]',
+      tabActive: 'border-[#8b5e3c] text-[#8b5e3c]',
+      inputRing: 'focus:ring-[#8b5e3c]',
+      font: 'font-serif'
+    }
+  };
+
+  const currentStyle = themeConfig[selectedTheme];
+
   // Initial Load
   useEffect(() => {
     const currentUser = StorageService.getCurrentUser();
@@ -95,7 +165,6 @@ const App: React.FC = () => {
     setShowOnboarding(false);
     if (user) {
       StorageService.markOnboardingSeen(user.id);
-      // Update local user state to reflect change
       setUser(prev => prev ? { ...prev, isFirstLogin: false } : null);
     }
   };
@@ -104,11 +173,10 @@ const App: React.FC = () => {
     setTopic(record.topic);
     const loadedContent = record.data;
     setContent(loadedContent);
-    // Determine theme from history or default to modern/dark depending on old data
-    if (loadedContent.theme) setSelectedTheme(loadedContent.theme);
-    else setSelectedTheme('dark');
     
-    // Set language from history if available, otherwise keep current or default to KK
+    if (loadedContent.theme) setSelectedTheme(loadedContent.theme);
+    else setSelectedTheme('dark'); // Fallback
+    
     if (loadedContent.language) setLanguage(loadedContent.language);
 
     setStatus({ 
@@ -119,6 +187,13 @@ const App: React.FC = () => {
     setActiveTab('video');
   };
 
+  const handleThemeChange = (newTheme: VideoTheme) => {
+    setSelectedTheme(newTheme);
+    if (content) {
+      setContent({ ...content, theme: newTheme });
+    }
+  };
+
   const handleGenerate = async () => {
     if (!topic.trim()) return;
 
@@ -126,18 +201,14 @@ const App: React.FC = () => {
     setContent(null);
 
     try {
-      // 1. Text Generation
       const explanation = await GeminiService.generateExplanation(topic, language);
       setStatus({ step: GenerationStep.QUIZ, message: t.status_quiz, progress: 30 });
 
-      // 2. Quiz Generation
       const quiz = await GeminiService.generateQuiz(explanation, language);
       setStatus({ step: GenerationStep.SLIDES_TEXT, message: t.status_slides, progress: 50 });
 
-      // 3. Slides Text
       const slideTexts = await GeminiService.generateSlideContent(explanation, language);
       
-      // 4. Slide Images (Parallel) - Pass theme here
       setStatus({ step: GenerationStep.IMAGES, message: t.status_images, progress: 65 });
       const slidesWithImages: SlideContent[] = await Promise.all(
         slideTexts.map(async (slide) => {
@@ -146,11 +217,9 @@ const App: React.FC = () => {
         })
       );
 
-      // 5. Audio Generation
       setStatus({ step: GenerationStep.AUDIO, message: t.status_audio, progress: 85 });
       const audioBase64 = await GeminiService.generateAudio(explanation, language);
 
-      // Finalize
       const newContent: GeneratedContent = {
         topic,
         explanation,
@@ -166,11 +235,10 @@ const App: React.FC = () => {
       setStatus({ step: GenerationStep.COMPLETED, message: t.status_complete, progress: 100 });
       setActiveTab('video');
 
-      // Save to History if Logged In
       if (user) {
         try {
           await StorageService.saveHistory(user.id, newContent);
-          await loadHistory(user.id); // Refresh history list
+          await loadHistory(user.id);
         } catch (e) {
           console.error("Failed to save history:", e);
         }
@@ -195,7 +263,6 @@ const App: React.FC = () => {
         setContent(updatedContent);
         setStatus({ step: GenerationStep.COMPLETED, message: t.status_complete, progress: 100 });
         
-        // Update history if logged in
         if (user) {
             await StorageService.saveHistory(user.id, updatedContent);
             await loadHistory(user.id);
@@ -226,11 +293,11 @@ const App: React.FC = () => {
     { id: 'quiz', label: t.tab_quiz, icon: BrainCircuit },
   ];
 
-  const themeOptions: { id: VideoTheme; label: string; colorClass: string }[] = [
-    { id: 'modern', label: 'Modern', colorClass: 'bg-white border-slate-200 text-slate-800' },
-    { id: 'dark', label: 'Dark', colorClass: 'bg-slate-900 border-slate-700 text-white' },
-    { id: 'playful', label: 'Playful', colorClass: 'bg-yellow-100 border-yellow-300 text-indigo-900' },
-    { id: 'classic', label: 'Classic', colorClass: 'bg-[#f5f5dc] border-[#d4d0b4] text-[#5c4033]' },
+  const themeOptions: { id: VideoTheme; label: string }[] = [
+    { id: 'modern', label: 'Modern' },
+    { id: 'dark', label: 'Dark' },
+    { id: 'playful', label: 'Playful' },
+    { id: 'classic', label: 'Classic' },
   ];
 
   const languages: { id: Language; label: string; flag: string }[] = [
@@ -240,7 +307,7 @@ const App: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 pb-20 font-sans">
+    <div className={`min-h-screen pb-20 transition-colors duration-500 ease-in-out ${currentStyle.appBg} ${currentStyle.text} ${currentStyle.font}`}>
       
       {/* Modals & Overlays */}
       <AuthModal 
@@ -260,29 +327,34 @@ const App: React.FC = () => {
         onClose={() => setShowHistory(false)} 
         onSelect={handleHistorySelect}
         lang={language}
+        theme={selectedTheme}
       />
 
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
+      <header className={`${currentStyle.headerBg} border-b ${currentStyle.headerBorder} sticky top-0 z-30 transition-colors duration-500`}>
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center text-white shadow-green-200 shadow-lg">
+            <div className={`w-10 h-10 ${currentStyle.iconBg} rounded-lg flex items-center justify-center text-white shadow-lg`}>
               <BrainCircuit className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight leading-none">{t.app_title}</h1>
-              <p className="text-xs text-slate-500 font-medium">{t.app_subtitle}</p>
+              <h1 className="text-xl font-bold tracking-tight leading-none">{t.app_title}</h1>
+              <p className={`text-xs ${currentStyle.mutedText} font-medium`}>{t.app_subtitle}</p>
             </div>
           </div>
           
           <div className="flex items-center gap-4">
             {/* Language Switcher */}
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+            <div className={`flex items-center gap-1 ${selectedTheme === 'dark' ? 'bg-slate-800' : 'bg-slate-100'} p-1 rounded-lg`}>
                {languages.map((lang) => (
                  <button
                    key={lang.id}
                    onClick={() => setLanguage(lang.id)}
-                   className={`px-2 py-1 text-xs font-medium rounded-md transition-all ${language === lang.id ? 'bg-white shadow text-green-700' : 'text-slate-500 hover:text-slate-700'}`}
+                   className={`px-2 py-1 text-xs font-medium rounded-md transition-all ${
+                     language === lang.id 
+                       ? `${currentStyle.cardBg} shadow ${currentStyle.accentColor}` 
+                       : `${currentStyle.mutedText} hover:opacity-80`
+                   }`}
                    title={lang.label}
                  >
                    {lang.flag} <span className="hidden md:inline">{lang.id.toUpperCase()}</span>
@@ -294,14 +366,14 @@ const App: React.FC = () => {
               <>
                 <button 
                   onClick={() => setShowHistory(true)}
-                  className="hidden md:flex items-center gap-2 text-slate-600 hover:text-green-600 font-medium transition"
+                  className={`hidden md:flex items-center gap-2 font-medium transition ${currentStyle.mutedText} hover:${currentStyle.accentColor.split(' ')[0]}`}
                 >
                   <History className="w-5 h-5" />
                   {t.my_history}
                 </button>
-                <div className="flex items-center gap-3 border-l pl-4 ml-2">
+                <div className={`flex items-center gap-3 border-l ${currentStyle.headerBorder} pl-4 ml-2`}>
                   <div className="text-right hidden sm:block">
-                    <p className="text-sm font-bold text-slate-800">{user.name}</p>
+                    <p className="text-sm font-bold">{user.name}</p>
                     <button onClick={handleLogout} className="text-xs text-red-500 hover:underline">{t.logout}</button>
                   </div>
                 </div>
@@ -310,14 +382,14 @@ const App: React.FC = () => {
               <div className="flex items-center gap-2">
                 <button 
                   onClick={() => setShowAuthModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 text-green-600 font-bold hover:bg-green-50 rounded-lg transition"
+                  className={`flex items-center gap-2 px-4 py-2 font-bold rounded-lg transition hover:bg-opacity-80 ${currentStyle.accentColor}`}
                 >
                   <LogIn className="w-4 h-4" />
                   {t.login}
                 </button>
                 <button 
                   onClick={() => setShowAuthModal(true)}
-                  className="hidden sm:flex px-4 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition shadow-lg shadow-green-500/20"
+                  className={`hidden sm:flex px-4 py-2 font-bold rounded-lg transition shadow-lg ${currentStyle.primaryBtn}`}
                 >
                   {t.signup}
                 </button>
@@ -331,11 +403,16 @@ const App: React.FC = () => {
       <main className="max-w-7xl mx-auto px-4 py-8">
         
         {/* Input Section */}
-        <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 mb-8 text-center max-w-3xl mx-auto relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500"></div>
+        <section className={`${currentStyle.cardBg} rounded-2xl shadow-sm border ${currentStyle.cardBorder} p-8 mb-8 text-center max-w-3xl mx-auto relative overflow-hidden transition-colors duration-500`}>
+          <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${
+            selectedTheme === 'dark' ? 'from-indigo-500 via-purple-500 to-pink-500' :
+            selectedTheme === 'playful' ? 'from-pink-400 via-yellow-400 to-blue-400' :
+            selectedTheme === 'classic' ? 'from-[#8b5e3c] to-[#d4d0b4]' :
+            'from-green-500 via-emerald-500 to-teal-500'
+          }`}></div>
           
-          <h2 className="text-2xl font-bold mb-2 text-slate-900">{t.input_title}</h2>
-          <p className="text-slate-500 mb-6">{t.input_desc}</p>
+          <h2 className="text-2xl font-bold mb-2">{t.input_title}</h2>
+          <p className={`${currentStyle.mutedText} mb-6`}>{t.input_desc}</p>
           
           <div className="flex flex-col gap-4 relative z-10">
             {/* Topic Input */}
@@ -345,13 +422,13 @@ const App: React.FC = () => {
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
                 placeholder={t.topic_placeholder}
-                className="flex-1 px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none text-lg transition shadow-sm"
+                className={`flex-1 px-4 py-3 border ${selectedTheme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'border-slate-300'} rounded-xl outline-none text-lg transition shadow-sm ${currentStyle.inputRing}`}
                 onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
               />
               <button 
                 onClick={handleGenerate}
                 disabled={status.step !== GenerationStep.IDLE && status.step !== GenerationStep.COMPLETED && status.step !== GenerationStep.ERROR}
-                className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-bold py-3 px-8 rounded-xl transition-all shadow-lg hover:shadow-green-500/30 flex items-center gap-2 whitespace-nowrap"
+                className={`font-bold py-3 px-8 rounded-xl transition-all shadow-lg flex items-center gap-2 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed ${currentStyle.primaryBtn}`}
               >
                 {status.step !== GenerationStep.IDLE && status.step !== GenerationStep.COMPLETED && status.step !== GenerationStep.ERROR ? (
                   <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"/>
@@ -364,37 +441,45 @@ const App: React.FC = () => {
 
             {/* Theme Selector */}
             <div className="flex flex-col items-start gap-2 mt-2">
-              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+              <label className={`text-xs font-semibold uppercase tracking-wider flex items-center gap-1 ${currentStyle.mutedText}`}>
                 <Palette className="w-3 h-3" />
                 {t.theme_label}
               </label>
               <div className="flex flex-wrap gap-2 w-full">
-                {themeOptions.map((theme) => (
-                  <button
-                    key={theme.id}
-                    onClick={() => setSelectedTheme(theme.id)}
-                    disabled={status.step !== GenerationStep.IDLE && status.step !== GenerationStep.COMPLETED && status.step !== GenerationStep.ERROR}
-                    className={`flex-1 min-w-[80px] py-2 px-3 rounded-lg border text-sm font-medium transition-all ${
-                      selectedTheme === theme.id 
-                        ? `${theme.colorClass} ring-2 ring-green-500 ring-offset-1 shadow-md transform scale-105` 
-                        : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
-                    }`}
-                  >
-                    {theme.label}
-                  </button>
-                ))}
+                {themeOptions.map((theme) => {
+                  const isActive = selectedTheme === theme.id;
+                  let btnClass = `flex-1 min-w-[80px] py-2 px-3 rounded-lg border text-sm font-medium transition-all `;
+                  
+                  // Dynamic styles for theme buttons
+                  if (isActive) {
+                    btnClass += `${currentStyle.cardBg} ${currentStyle.accentColor} ${currentStyle.tabActive.split(' ')[0]} border-2 shadow-md transform scale-105`;
+                  } else {
+                     if (selectedTheme === 'dark') btnClass += `bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700`;
+                     else btnClass += `bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100`;
+                  }
+
+                  return (
+                    <button
+                      key={theme.id}
+                      onClick={() => handleThemeChange(theme.id)}
+                      className={btnClass}
+                    >
+                      {theme.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
           
           {!user && (
-            <p className="mt-4 text-xs text-slate-400 flex items-center justify-center gap-1">
+            <p className={`mt-4 text-xs flex items-center justify-center gap-1 ${currentStyle.mutedText}`}>
               <AlertCircle className="w-3 h-3"/> {t.save_warning}
             </p>
           )}
 
           {status.step !== GenerationStep.IDLE && status.step !== GenerationStep.COMPLETED && status.step !== GenerationStep.ERROR && (
-             <ProgressBar status={status} lang={language} />
+             <ProgressBar status={status} lang={language} theme={selectedTheme} />
           )}
 
           {status.step === GenerationStep.ERROR && (
@@ -411,7 +496,7 @@ const App: React.FC = () => {
             {/* Action Bar (Downloads) */}
             <div className="flex flex-wrap gap-3 mb-6 justify-end">
                {user && (
-                 <span className={`mr-auto flex items-center text-sm font-medium px-3 py-1 rounded-full bg-green-50 text-green-600`}>
+                 <span className={`mr-auto flex items-center text-sm font-medium px-3 py-1 rounded-full ${selectedTheme === 'dark' ? 'bg-slate-800 text-green-400' : 'bg-green-50 text-green-600'}`}>
                     <UserIcon className="w-3 h-3 mr-1"/> 
                     {t.history_saved}
                  </span>
@@ -420,7 +505,7 @@ const App: React.FC = () => {
                {!content.audioBase64 && (
                  <button 
                     onClick={regenerateAudio}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 text-sm font-medium transition shadow-sm"
+                    className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium transition shadow-sm ${currentStyle.secondaryBtn}`}
                  >
                    <RefreshCw className="w-4 h-4"/> {t.regenerate_audio}
                  </button>
@@ -429,28 +514,28 @@ const App: React.FC = () => {
                <button 
                   onClick={downloadAudio} 
                   disabled={!content.audioBase64}
-                  className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium transition shadow-sm ${!content.audioBase64 ? 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'}`}
+                  className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium transition shadow-sm ${!content.audioBase64 ? 'opacity-50 cursor-not-allowed' : ''} ${currentStyle.secondaryBtn}`}
                >
                  <Music className={`w-4 h-4 ${content.audioBase64 ? 'text-purple-500' : ''}`}/> {t.download_audio}
                </button>
-               <button onClick={() => downloadPDF(content)} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-700 text-sm font-medium transition shadow-sm">
+               <button onClick={() => downloadPDF(content)} className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium transition shadow-sm ${currentStyle.secondaryBtn}`}>
                  <FileText className="w-4 h-4 text-red-500"/> {t.download_pdf}
                </button>
-               <button onClick={() => downloadPPTX(content)} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-700 text-sm font-medium transition shadow-sm">
+               <button onClick={() => downloadPPTX(content)} className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium transition shadow-sm ${currentStyle.secondaryBtn}`}>
                  <Presentation className="w-4 h-4 text-orange-500"/> {t.download_pptx}
                </button>
             </div>
 
             {/* Navigation Tabs */}
-            <div className="bg-white rounded-t-2xl border-b border-slate-200 px-2 flex">
+            <div className={`${currentStyle.cardBg} rounded-t-2xl border-b ${currentStyle.cardBorder} px-2 flex transition-colors duration-500`}>
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
                   className={`flex items-center gap-2 px-6 py-4 font-medium text-sm transition-all border-b-2 ${
                     activeTab === tab.id 
-                      ? 'border-green-600 text-green-600' 
-                      : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                      ? currentStyle.tabActive
+                      : `border-transparent ${currentStyle.mutedText} hover:opacity-80`
                   }`}
                 >
                   <tab.icon className="w-4 h-4" />
@@ -460,11 +545,11 @@ const App: React.FC = () => {
             </div>
 
             {/* Content Display */}
-            <div className="bg-white rounded-b-2xl shadow-sm border border-slate-200 border-t-0 p-6 md:p-8 min-h-[500px]">
+            <div className={`${currentStyle.cardBg} rounded-b-2xl shadow-sm border ${currentStyle.cardBorder} border-t-0 p-6 md:p-8 min-h-[500px] transition-colors duration-500`}>
               
               {/* Text View */}
               {activeTab === 'text' && (
-                <div className="max-w-4xl mx-auto prose prose-green prose-lg text-slate-700">
+                <div className={`max-w-4xl mx-auto prose prose-lg ${selectedTheme === 'dark' ? 'prose-invert' : ''}`}>
                   <h1 className="text-3xl font-bold mb-6">{content.topic}</h1>
                   <div dangerouslySetInnerHTML={{ __html: content.explanation.replace(/\n/g, '<br/>') }} />
                 </div>
@@ -474,19 +559,16 @@ const App: React.FC = () => {
               {activeTab === 'video' && (
                 <div className="space-y-6">
                    <div className="text-center mb-6">
-                      <h2 className="text-xl font-bold text-slate-800">{t.video_title}</h2>
-                      <p className="text-slate-500 mb-2">
+                      <h2 className="text-xl font-bold">{t.video_title}</h2>
+                      <p className={`${currentStyle.mutedText} mb-2`}>
                         {content.audioBase64 ? t.video_desc : t.video_no_audio}
                       </p>
-                      <span className="inline-block px-3 py-1 bg-slate-100 rounded-full text-xs font-medium text-slate-500 uppercase">
-                        {themeOptions.find(opt => opt.id === content.theme)?.label || 'Standard'}
-                      </span>
                    </div>
                    <VideoPlayer 
                       slides={content.slides} 
                       audioBase64={content.audioBase64} 
                       textExplanation={content.explanation} 
-                      theme={content.theme}
+                      theme={selectedTheme}
                       lang={language}
                       onRegenerateAudio={regenerateAudio}
                    />
@@ -495,7 +577,7 @@ const App: React.FC = () => {
 
               {/* Quiz View */}
               {activeTab === 'quiz' && (
-                <QuizView questions={content.quiz} lang={language} />
+                <QuizView questions={content.quiz} lang={language} theme={selectedTheme} />
               )}
             </div>
           </div>

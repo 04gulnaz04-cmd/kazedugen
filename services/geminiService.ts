@@ -197,16 +197,16 @@ export const generateSlideImage = async (imagePrompt: string, theme: VideoTheme 
   let stylePrompt = "";
   switch (theme) {
     case 'modern':
-      stylePrompt = "minimalist, clean lines, corporate memphis style, bright, high quality vector art";
+      stylePrompt = "minimalist, sleek, modern corporate memphis style, vector art, white background, high contrast, clean lines";
       break;
     case 'dark':
-      stylePrompt = "futuristic, neon glow, cyber style, dark background, digital art";
+      stylePrompt = "futuristic, cyberpunk, neon lighting, dark background, glowing elements, digital art, high tech";
       break;
     case 'playful':
-      stylePrompt = "cheerful, colorful, flat design illustration, cartoon style, rounded shapes";
+      stylePrompt = "cheerful, colorful, flat design, cute illustration, cartoon style, rounded shapes, vibrant colors, for kids";
       break;
     case 'classic':
-      stylePrompt = "realistic, academic, oil painting style, detailed, historical context";
+      stylePrompt = "vintage, realistic, oil painting style, academic, historical, detailed, textured, sepia tones";
       break;
     default:
       stylePrompt = "educational illustration, vector art style, clean background";
@@ -216,7 +216,7 @@ export const generateSlideImage = async (imagePrompt: string, theme: VideoTheme 
     const response = await ai.models.generateContent({
       model,
       contents: {
-        parts: [{ text: `${stylePrompt}. ${imagePrompt}` }]
+        parts: [{ text: `Create an image with this style: ${stylePrompt}. Subject: ${imagePrompt}` }]
       }
     });
 

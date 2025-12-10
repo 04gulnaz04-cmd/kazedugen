@@ -129,8 +129,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ slides, audioBase64, theme = 
                   alt={currentSlide.title}
                   className={`w-full h-full object-cover transition-transform duration-[20s] ease-linear transform scale-100 ${isPlaying ? 'scale-110' : ''}`}
                 />
-                 {/* Theme-specific Overlay tint */}
-                <div className={`absolute inset-0 ${theme === 'modern' ? 'bg-white/10' : theme === 'classic' ? 'bg-sepia/20' : 'bg-black/30'}`}></div>
+                 {/* Theme-specific Overlay tint to blend images even if style doesn't match perfectly */}
+                <div className={`absolute inset-0 ${
+                  theme === 'modern' ? 'bg-white/30' : 
+                  theme === 'classic' ? 'bg-[#5c4033]/20 mix-blend-sepia' : 
+                  theme === 'playful' ? 'bg-yellow-400/10 mix-blend-overlay' :
+                  'bg-black/40'
+                }`}></div>
               </div>
             ) : (
               <div className="absolute inset-0 bg-gradient-to-br from-green-900 to-slate-900" />
